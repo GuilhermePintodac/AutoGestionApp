@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -125,7 +126,10 @@ class Home : ComponentActivity() {
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                HomeTitle(text = "AutoGestion")
+                HomeTitle(text = "AutoGestion", onSettingsClick = {
+                    val intent = Intent(context, Settings::class.java)
+                    context.startActivity(intent)
+                } )
 
                 // Search bar
                 Row(
@@ -302,7 +306,7 @@ class Home : ComponentActivity() {
     }
 
     @Composable
-    fun HomeTitle(text: String) {
+    fun HomeTitle(text: String, onSettingsClick: () -> Unit) {
         // Up Bar
         Row(
             modifier = Modifier
@@ -317,8 +321,13 @@ class Home : ComponentActivity() {
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.Black,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                modifier = Modifier.weight(1f)
             )
+            
+            IconButton(onClick = onSettingsClick) {
+                Icon(imageVector = Icons.Default.Settings, contentDescription = "Bouton Paramètres" )
+            }
         }
     }
 
