@@ -1,6 +1,8 @@
 package com.example.autogestion.ui.forms
 
-import android.content.Intent
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,17 +18,18 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.autogestion.ui.Home
-import com.example.autogestion.ui.components.NavBar
+import com.example.autogestion.ui.components.NavBarClients
 import com.example.autogestion.data.Client
 import com.example.autogestion.data.viewModels.ClientViewModel
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Locale
-import android.app.DatePickerDialog
-import android.content.Context
+import android.content.pm.PackageManager
+import android.provider.ContactsContract
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.core.content.ContextCompat
 import com.example.autogestion.ui.utils.DateUtils.dateFormat
 import com.example.autogestion.ui.utils.DateUtils.showDatePicker
 import com.example.autogestion.ui.utils.NavigationUtils.navigateToHome
@@ -62,6 +65,7 @@ class ClientForm : ComponentActivity() {
         }
     }
 
+    @SuppressLint("Range")
     @Composable
     fun ClientFormApp(
         initFirstName: String,
@@ -73,6 +77,7 @@ class ClientForm : ComponentActivity() {
         clientViewModel: ClientViewModel = viewModel()
     ) {
         val context = LocalContext.current
+        val activity = context as ComponentActivity
 
         // State management for input fields
         var firstName by remember { mutableStateOf(TextFieldValue(initFirstName)) }
@@ -94,6 +99,29 @@ class ClientForm : ComponentActivity() {
 
         val coroutineScope = rememberCoroutineScope()
 
+
+        // State to control when to show the ContactPicker
+        var showContactPicker by remember { mutableStateOf(false) }
+
+        // Callback function to update the form fields when a contact is selected
+        fun updateFormFromContact(
+            pickedFirstName: String,
+            pickedLastName: String,
+            pickedPhoneNumber: String,
+            pickedEmail: String,
+            pickedAddress: String,
+            pickedBirthDate: String
+        ) {
+            firstName = TextFieldValue(pickedFirstName)
+            lastName = TextFieldValue(pickedLastName)
+            phoneNumber = TextFieldValue(pickedPhoneNumber)
+            email = TextFieldValue(pickedEmail)
+            address = TextFieldValue(pickedAddress)
+            birthDate = TextFieldValue(pickedBirthDate)
+        }
+
+
+
         // Form display and user input handling.
         // Each field is bound to a specific part of the client's data.
         // Validators are set to trigger visual indicators of errors (isError).
@@ -104,10 +132,38 @@ class ClientForm : ComponentActivity() {
                     .padding(padding)
             ) {
 
-                NavBar(
+                // Display the contact picker when the state is true
+                if (showContactPicker) {
+                    ContactPicker(
+                        context = context,
+                        onContactPicked = { firstName, lastName, phone, email, address, birthDate ->
+                            // Update the form when contact is picked
+                            updateFormFromContact(firstName, lastName, phone, email, address, birthDate)
+                            // Hide the contact picker after selection
+                            showContactPicker = false
+                        }
+                    )
+                }
+
+                NavBarClients(
                     text = "Formulaire Client",
                     onBackClick = {
                         navigateToHome(context)
+                    },
+                    onContactClick = {
+
+                        // Trigger the contact picker to be shown
+                        showContactPicker = true
+
+
+//                        contactResultLauncher.launch(null)
+                        // Invoke the ContactPicker and pass the updateFormFromContact callback
+//                        ContactPicker(
+//                            context = context,
+//                            onContactPicked = { firstName, lastName, phone, email, address, birthDate ->
+//                                updateFormFromContact(firstName, lastName, phone, email, address, birthDate)
+//                            }
+//                        )
                     }
                 )
 
@@ -289,6 +345,135 @@ class ClientForm : ComponentActivity() {
 
 
 }
+
+@SuppressLint("Range")
+@Composable
+fun ContactPicker(
+    context: Context,
+    onContactPicked: (
+        firstName: String,
+        lastName: String,
+        phoneNumber: String,
+        email: String,
+        address: String,
+        birthDate: String
+    ) -> Unit
+) {
+    val contactResultLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickContact()) { uri ->
+        uri?.let {
+            val contactId = it.lastPathSegment?.let { id ->
+                val projection = arrayOf(ContactsContract.Contacts._ID)
+                val cursor = context.contentResolver.query(it, projection, null, null, null)
+                cursor?.use { c ->
+                    if (c.moveToFirst()) {
+                        c.getString(c.getColumnIndex(ContactsContract.Contacts._ID))
+
+                    } else {
+                        null
+                    }
+                }
+            }
+
+            contactId?.let { id ->
+                val projection = arrayOf(
+                    ContactsContract.Data.MIMETYPE,
+                    ContactsContract.Data.DATA1 // Colonne de base pour les données
+                )
+                val selection = "${ContactsContract.Data.CONTACT_ID} = ?"
+                val selectionArgs = arrayOf(id)
+
+                val cursor = context.contentResolver.query(
+                    ContactsContract.Data.CONTENT_URI,
+                    projection,
+                    selection,
+                    selectionArgs,
+                    null
+                )
+
+                cursor?.use { c ->
+                    var nameFirst: String? = null
+                    var nameLast: String? = null
+                    var phone: String? = null
+                    var emailContact: String? = null
+                    var addressContact: String? = null
+                    var birthDateContact: String? = null
+
+                    while (c.moveToNext()) {
+                        val mimeTypeIndex = c.getColumnIndex(ContactsContract.Data.MIMETYPE)
+                        val dataIndex = c.getColumnIndex(ContactsContract.Data.DATA1)
+
+                        if (mimeTypeIndex != -1 && dataIndex != -1) {
+                            val mimeType = c.getString(mimeTypeIndex)
+
+                            when (mimeType) {
+                                ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE -> {
+                                    phone = c.getString(dataIndex)
+                                }
+                                ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE -> {
+                                    val fullNameIndex = c.getColumnIndex(ContactsContract.Data.DATA1)
+
+                                    var fullName = ""
+                                    if (fullNameIndex != -1) {
+                                        fullName = c.getString(fullNameIndex)
+                                    }
+
+                                    val nameParts = fullName.split(" ", limit = 2)
+                                    if (nameParts.size == 2) {
+                                        nameFirst = nameParts[0]
+                                        nameLast = nameParts[1]
+                                    }
+                                }
+                                ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE -> {
+                                    emailContact = c.getString(dataIndex)
+                                }
+                                ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE -> {
+                                    addressContact = c.getString(dataIndex)
+                                }
+                                ContactsContract.CommonDataKinds.Event.CONTENT_ITEM_TYPE -> {
+                                    val eventTypeIndex = c.getColumnIndex(ContactsContract.CommonDataKinds.Event.TYPE)
+                                    if (eventTypeIndex != -1) {
+                                        val eventType = c.getInt(eventTypeIndex)
+                                        if (eventType == ContactsContract.CommonDataKinds.Event.TYPE_BIRTHDAY) {
+                                            birthDateContact = c.getString(dataIndex)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    nameFirst = nameFirst ?: ""
+                    nameLast = nameLast ?: ""
+                    phone = phone ?: ""
+                    emailContact = emailContact ?: ""
+                    addressContact = addressContact ?: ""
+                    birthDateContact = birthDateContact ?: ""
+
+                    // Appel du callback avec les données du contact
+                    onContactPicked(nameFirst, nameLast, phone, emailContact, addressContact, birthDateContact)
+                }
+            }
+        }
+    }
+
+    // Gestion des permissions
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+        if (isGranted) {
+            contactResultLauncher.launch(null)
+        } else {
+            Log.e("ContactPicker", "Permission denied")
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+        } else {
+            contactResultLauncher.launch(null)
+        }
+    }
+}
+
 
 
 

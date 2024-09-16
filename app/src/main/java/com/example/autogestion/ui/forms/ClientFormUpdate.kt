@@ -24,6 +24,7 @@ import com.example.autogestion.ui.Home
 import com.example.autogestion.ui.components.NavBar
 import com.example.autogestion.data.Client
 import com.example.autogestion.data.viewModels.ClientViewModel
+import com.example.autogestion.ui.components.NavBarClients
 import com.example.autogestion.ui.utils.DateUtils.dateFormat
 import com.example.autogestion.ui.utils.NavigationUtils.navigateToClientProfile
 import kotlinx.coroutines.launch
@@ -86,6 +87,26 @@ class ClientFormUpdate : ComponentActivity() {
 
         val coroutineScope = rememberCoroutineScope()
 
+        // State to control when to show the ContactPicker
+        var showContactPicker by remember { mutableStateOf(false) }
+
+        // Function to update form fields from contact data
+        fun updateFormFromContact(
+            contactFirstName: String,
+            contactLastName: String,
+            contactPhone: String,
+            contactEmail: String,
+            contactAddress: String,
+            contactBirthDate: String
+        ) {
+            firstName = contactFirstName
+            lastName = contactLastName
+            phoneNumber = contactPhone
+            email = contactEmail
+            address = contactAddress
+            birthDate = contactBirthDate
+        }
+
         // Form display and user input handling
         Column(
             modifier = Modifier
@@ -93,10 +114,33 @@ class ClientFormUpdate : ComponentActivity() {
                 .padding(innerPadding)
         ) {
 
-            NavBar(
+            // Display the contact picker when showContactPicker is true
+            if (showContactPicker) {
+                ContactPicker(
+                    context = context,
+                    onContactPicked = { contactFirstName, contactLastName, contactPhone, contactEmail, contactAddress, contactBirthDate ->
+                        // Update the form when a contact is selected
+                        updateFormFromContact(
+                            contactFirstName,
+                            contactLastName,
+                            contactPhone,
+                            contactEmail,
+                            contactAddress,
+                            contactBirthDate
+                        )
+                        showContactPicker = false
+                    }
+                )
+            }
+
+            NavBarClients(
                 text = "Modifier Client",
                 onBackClick = {
                     navigateToClientProfile(context, client.clientId)
+                },
+                onContactClick = {
+                    // Show the contact picker when the button is clicked
+                    showContactPicker = true
                 }
             )
 
